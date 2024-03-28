@@ -54,13 +54,6 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
-//        tts = TextToSpeech(this) { status ->
-//            if (status != TextToSpeech.ERROR) {
-//                tts.language = Locale.US
-//                tts.speak("Ready to go", TextToSpeech.QUEUE_FLUSH, null, "")
-//            }
-//        }
-
         getPermission()
         labels = FileUtil.loadLabels(this, "labels.txt")
         imageProcessor = ImageProcessor.Builder().add(ResizeOp(300,300,ResizeOp.ResizeMethod.BILINEAR)).build()
@@ -179,10 +172,10 @@ class MainActivity : AppCompatActivity() {
     }
     override fun onDestroy() {
         super.onDestroy()
-        if (::tts.isInitialized) {
-            tts.stop()
-            tts.shutdown()
-        }
+//        if (::tts.isInitialized) {
+//            tts.stop()
+//            tts.shutdown()
+//        }
         model.close()
         cameraDevice.close()
     }
