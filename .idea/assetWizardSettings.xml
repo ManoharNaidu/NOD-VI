@@ -113,8 +113,7 @@
                                   <option name="values">
                                     <map>
                                       <entry key="backgroundAssetType" value="COLOR" />
-                                      <entry key="backgroundColor" value="ff7e73" />
-                                      <entry key="legacyIconShape" value="CIRCLE" />
+                                      <entry key="backgroundColor" value="ff8a80" />
                                     </map>
                                   </option>
                                 </PersistentState>
