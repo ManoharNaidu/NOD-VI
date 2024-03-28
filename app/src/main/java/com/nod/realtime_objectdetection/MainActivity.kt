@@ -1,7 +1,5 @@
 package com.nod.realtime_objectdetection
 
-import android.speech.tts.TextToSpeech
-import java.util.Locale
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
@@ -19,7 +17,7 @@ import android.os.HandlerThread
 import android.view.Surface
 import android.view.TextureView
 import android.widget.ImageView
-import androidx.activity.enableEdgeToEdge
+//import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
@@ -31,10 +29,9 @@ import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.ResizeOp
 
 class MainActivity : AppCompatActivity() {
-    lateinit var tts : TextToSpeech
-    lateinit var labels : List<String>
-    var colors = listOf<Int>(Color.BLUE, Color.GREEN, Color.RED, Color.CYAN, Color.GRAY, Color.BLACK, Color.DKGRAY, Color.MAGENTA, Color.YELLOW, Color.RED)
     val paint = Paint()
+    var colors = listOf<Int>(Color.BLUE, Color.GREEN, Color.RED, Color.CYAN, Color.GRAY, Color.BLACK, Color.DKGRAY, Color.MAGENTA, Color.YELLOW, Color.RED)
+    lateinit var labels : List<String>
     lateinit var imageProcessor: ImageProcessor
     lateinit var bitmap : Bitmap
     lateinit var imageView: ImageView
@@ -43,10 +40,11 @@ class MainActivity : AppCompatActivity() {
     lateinit var cameraManager: CameraManager
     lateinit var textureView : TextureView
     lateinit var model : MobilenetTflite
+//    var frameCount = 0
     override fun onCreate(savedInstanceState: Bundle?) {
 
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+//        enableEdgeToEdge()
         setContentView(R.layout.activity_main)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -54,7 +52,7 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
-        getPermission()
+        get_permission()
         labels = FileUtil.loadLabels(this, "labels.txt")
         imageProcessor = ImageProcessor.Builder().add(ResizeOp(300,300,ResizeOp.ResizeMethod.BILINEAR)).build()
         model = MobilenetTflite.newInstance(this)
@@ -79,6 +77,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onSurfaceTextureUpdated(p0: SurfaceTexture) {
+
                 bitmap = textureView.bitmap!!
 
                 var image = TensorImage.fromBitmap(bitmap)
@@ -89,9 +88,10 @@ class MainActivity : AppCompatActivity() {
                 val locations = outputs.locationsAsTensorBuffer.floatArray
                 val classes = outputs.classesAsTensorBuffer.floatArray
                 val scores = outputs.scoresAsTensorBuffer.floatArray
-                val numberOfDetections = outputs.numberOfDetectionsAsTensorBuffer.floatArray
+//                val numberOfDetections = outputs.numberOfDetectionsAsTensorBuffer.floatArray
 
-                var mutableBitmap = bitmap.copy(Bitmap.Config.ARGB_8888,true)
+
+                val mutableBitmap = bitmap.copy(Bitmap.Config.ARGB_8888,true)
                 val canvas = Canvas(mutableBitmap)
 
                 val h = mutableBitmap.height
@@ -100,11 +100,15 @@ class MainActivity : AppCompatActivity() {
                 paint.textSize = h/15f
                 paint.strokeWidth = h/85f
 
+//                frameCount += 1
                 var x = 0
                 scores.forEachIndexed{ index, fl ->
-                    x = index
-                    x *= 4
-                    if(fl > 0.5){
+                    val fl = roundOff(fl)
+//                    println("Frame num: $frameCount")
+//                    println("Score: $fl,$index")
+
+                    x = index*4
+                    if(fl > 0.65){
                         paint.setColor(colors.get(index))
                         paint.style = Paint.Style.STROKE
                         canvas.drawRect(locations.get(x+1)*w, locations.get(x)*h, locations.get(x+3)*w, locations.get(x+2)*h, paint)
@@ -113,12 +117,18 @@ class MainActivity : AppCompatActivity() {
 
                     }
                 }
+
                 imageView.setImageBitmap(mutableBitmap)
 
             }
         }
 
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
+    }
+
+    fun roundOff(x: Float): Float {
+        val scale = 100f
+        return Math.round(x * scale) / scale
     }
 
     @SuppressLint("MissingPermission")
@@ -154,22 +164,19 @@ class MainActivity : AppCompatActivity() {
     }, handler)
     }
 
-    fun getPermission(){
+    fun get_permission(){
         if(ContextCompat.checkSelfPermission(this,android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED){
             requestPermissions(arrayOf(android.Manifest.permission.CAMERA),101)
         }
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if(grantResults[0] != PackageManager.PERMISSION_GRANTED){
-            getPermission()
+            get_permission()
         }
     }
+
     override fun onDestroy() {
         super.onDestroy()
 //        if (::tts.isInitialized) {
@@ -180,3 +187,4 @@ class MainActivity : AppCompatActivity() {
         cameraDevice.close()
     }
 }
+
