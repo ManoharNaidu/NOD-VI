@@ -1,5 +1,7 @@
 package com.nod.realtime_objectdetection
 
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
@@ -29,6 +31,7 @@ import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.ResizeOp
 
 class MainActivity : AppCompatActivity() {
+    lateinit var tts : TextToSpeech
     lateinit var labels : List<String>
     var colors = listOf<Int>(Color.BLUE, Color.GREEN, Color.RED, Color.CYAN, Color.GRAY, Color.BLACK, Color.DKGRAY, Color.MAGENTA, Color.YELLOW, Color.RED)
     val paint = Paint()
@@ -50,6 +53,14 @@ class MainActivity : AppCompatActivity() {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
+
+//        tts = TextToSpeech(this) { status ->
+//            if (status != TextToSpeech.ERROR) {
+//                tts.language = Locale.US
+//                tts.speak("Ready to go", TextToSpeech.QUEUE_FLUSH, null, "")
+//            }
+//        }
+
         getPermission()
         labels = FileUtil.loadLabels(this, "labels.txt")
         imageProcessor = ImageProcessor.Builder().add(ResizeOp(300,300,ResizeOp.ResizeMethod.BILINEAR)).build()
@@ -76,7 +87,6 @@ class MainActivity : AppCompatActivity() {
 
             override fun onSurfaceTextureUpdated(p0: SurfaceTexture) {
                 bitmap = textureView.bitmap!!
-
 
                 var image = TensorImage.fromBitmap(bitmap)
 
@@ -169,6 +179,10 @@ class MainActivity : AppCompatActivity() {
     }
     override fun onDestroy() {
         super.onDestroy()
+        if (::tts.isInitialized) {
+            tts.stop()
+            tts.shutdown()
+        }
         model.close()
         cameraDevice.close()
     }

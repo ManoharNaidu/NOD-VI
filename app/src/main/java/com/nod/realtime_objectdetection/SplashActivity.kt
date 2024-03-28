@@ -20,9 +20,9 @@ class SplashActivity : AppCompatActivity() {
         }
 
         Handler().postDelayed({
-            val intent = Intent(this, MainActivity::class.java)
+            val intent = Intent(this, SpeechActivity::class.java)
             startActivity(intent)
             finish()
-        }, 3000L)
+        }, 3000)
     }
 }
