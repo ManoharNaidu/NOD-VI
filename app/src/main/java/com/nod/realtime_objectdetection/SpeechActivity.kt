@@ -19,17 +19,15 @@ class SpeechActivity : AppCompatActivity(), OnInitListener {
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
-            tts.language = Locale.US
+            tts.language = Locale.ENGLISH
             tts.setSpeechRate(0.7f)
-            tts.speak("NOD Ready to go ", TextToSpeech.QUEUE_FLUSH, null, "")
+            tts.speak("NOD is ready to go ", TextToSpeech.QUEUE_FLUSH, null, "")
         }
         Handler().postDelayed({
             val intent = Intent(this, MainActivity::class.java)
             startActivity(intent)
             finish()
-        }, 1000)
+        }, 2000)
     }
-
-
 }
 
