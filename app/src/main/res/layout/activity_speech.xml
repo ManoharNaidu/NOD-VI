@@ -5,11 +5,27 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="#000"
     tools:context=".SpeechActivity">
 
-    <ImageView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="@drawable/demo" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="259dp"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentBottom="true"
+        android:layout_marginTop="245dp"
+        android:layout_marginEnd="0dp"
+        android:layout_marginBottom="245dp"
+        android:background="#000"
+        android:breakStrategy="simple"
+        android:fontFamily="sans-serif"
+        android:text="Naviagtion and Obstacle Detection for Visually Impaired"
+        android:textAlignment="center"
+        android:textColor="#FFAE33"
+        android:textIsSelectable="true"
+        android:textSize="50sp" />
 
 </RelativeLayout>
