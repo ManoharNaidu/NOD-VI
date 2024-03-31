@@ -20,9 +20,9 @@ import android.os.HandlerThread
 import android.speech.tts.TextToSpeech
 import android.view.Surface
 import android.view.TextureView
-import android.widget.Button
+//import android.widget.Button
 import android.widget.ImageView
-import android.widget.RelativeLayout
+//import android.widget.RelativeLayout
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -34,7 +34,7 @@ import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.ResizeOp
 import java.util.Locale
-import java.util.concurrent.Executors
+//import java.util.concurrent.Executors
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     // initialize the variables
 //    private val executorService = Executors.newSingleThreadExecutor()
@@ -50,7 +50,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     lateinit var textureView : TextureView
     lateinit var model : MobilenetTflite
     lateinit var tts: TextToSpeech
-
 
 
     override fun onInit(status: Int) {
@@ -189,7 +188,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
                     // Calculate the correct orientation for the camera preview
                     val sensorOrientation = cameraManager.getCameraCharacteristics(cameraDevice.id).get(CameraCharacteristics.SENSOR_ORIENTATION)!!
-                    var newOrientation = (sensorOrientation - rotation * 90 + 360) % 360
+                    val newOrientation = (sensorOrientation - rotation * 90 + 360) % 360
 
                     // Set the calculated orientation to the camera preview
                     captureRequest.set(CaptureRequest.JPEG_ORIENTATION, newOrientation)

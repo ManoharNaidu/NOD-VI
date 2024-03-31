@@ -30,10 +30,6 @@
         </activity>
 
         <activity
-            android:name=".SpeechActivity"
-            android:exported="false" />
-
-        <activity
             android:name=".MainActivity"
             android:exported="false" />
 

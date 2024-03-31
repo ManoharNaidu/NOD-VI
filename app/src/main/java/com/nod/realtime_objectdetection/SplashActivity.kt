@@ -35,7 +35,7 @@ class SplashActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val intent = Intent(this, MainActivity::class.java)
             startActivity(intent)
             finish()
-        }, 4500)
+        }, 3500)
 
     }
 }
