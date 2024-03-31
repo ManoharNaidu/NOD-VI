@@ -29,13 +29,13 @@ class SplashActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (status == TextToSpeech.SUCCESS) {
             tts.language = Locale.ENGLISH
             tts.setSpeechRate(0.7f)
-            tts.speak("NOD is ready to go ", TextToSpeech.QUEUE_FLUSH, null, "")
+            tts.speak("You are good to move ", TextToSpeech.QUEUE_FLUSH, null, "")
         }
         Handler().postDelayed({
             val intent = Intent(this, MainActivity::class.java)
             startActivity(intent)
             finish()
-        }, 3500)
+        }, 2000)
 
     }
 }
