@@ -6,11 +6,14 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ImageFormat
 import android.graphics.Paint
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
+import android.hardware.camera2.CaptureRequest
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
@@ -48,6 +51,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     lateinit var model : MobilenetTflite
     lateinit var tts: TextToSpeech
 
+
+
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             tts.language = Locale.ENGLISH
@@ -79,8 +84,19 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         imageView = findViewById(R.id.imageView)
         textureView = findViewById(R.id.textureView)
 
-        predict()
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
+
+        val cameraId = cameraManager.cameraIdList[0]
+        val characteristics = cameraManager.getCameraCharacteristics(cameraId)
+        val streamConfigurationMap = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+        val largestSize = streamConfigurationMap?.getOutputSizes(ImageFormat.JPEG)?.maxByOrNull { it.height * it.width }
+
+        val layoutParams = textureView.layoutParams
+        layoutParams.width = largestSize?.width ?: 0
+        layoutParams.height = largestSize?.height ?: 0
+        textureView.layoutParams = layoutParams
+
+        predict()
     }
 
     fun predict(){
@@ -114,12 +130,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 val h = mutableBitmap.height
                 val w = mutableBitmap.width
                 println("Height: $h, Width: $w")
-
-
-//                val params = RelativeLayout.LayoutParams(w, h)
-//                textureView.layoutParams = params
-//                imageView.layoutParams = params
-//                params.addRule(RelativeLayout.CENTER_IN_PARENT, RelativeLayout.TRUE)
 
 
                 paint.textSize = h/15f
@@ -174,6 +184,16 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             captureRequest.addTarget(surface)
             cameraDevice.createCaptureSession(listOf(surface),object : CameraCaptureSession.StateCallback(){
                 override fun onConfigured(p0: CameraCaptureSession) {
+
+                    val rotation = windowManager.defaultDisplay.rotation
+
+                    // Calculate the correct orientation for the camera preview
+                    val sensorOrientation = cameraManager.getCameraCharacteristics(cameraDevice.id).get(CameraCharacteristics.SENSOR_ORIENTATION)!!
+                    var newOrientation = (sensorOrientation - rotation * 90 + 360) % 360
+
+                    // Set the calculated orientation to the camera preview
+                    captureRequest.set(CaptureRequest.JPEG_ORIENTATION, newOrientation)
+
                     p0.setRepeatingRequest(captureRequest.build(),null,null)
                 }
 
@@ -217,4 +237,5 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         super.onResume()
     }
 }
+
 
