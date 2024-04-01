@@ -11,6 +11,18 @@ import android.speech.tts.TextToSpeech
 import java.util.Locale
 
 class SplashActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
+    val phrases = listOf(
+        "Let's get started!",
+        "Ready, set, go!",
+        "Onwards and upwards!",
+        "Dive right in!",
+        "Adventure awaits!",
+        "Your journey begins now!",
+        "You are good to move"
+    )
+
+    val randomPhrase = phrases.random()
+
     private lateinit var tts: TextToSpeech
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -22,14 +34,13 @@ class SplashActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             insets
         }
         tts = TextToSpeech(this, this)
-
     }
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
-            tts.language = Locale.ENGLISH
+            tts.setLanguage(Locale.ENGLISH)
             tts.setSpeechRate(0.7f)
-            tts.speak("You are good to move ", TextToSpeech.QUEUE_FLUSH, null, "")
+            tts.speak(randomPhrase, TextToSpeech.QUEUE_FLUSH, null, "")
         }
         Handler().postDelayed({
             val intent = Intent(this, MainActivity::class.java)
