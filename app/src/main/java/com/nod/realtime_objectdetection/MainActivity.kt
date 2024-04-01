@@ -11,13 +11,17 @@ import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.speech.tts.TextToSpeech
 import android.view.Surface
 import android.view.TextureView
 import android.widget.ImageView
+import android.widget.TextView
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -31,30 +35,21 @@ import org.tensorflow.lite.support.image.ops.ResizeOp
 import java.util.Locale
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
-    // initialize the variables
+    // Decalring the variables
     val paint = Paint()
-    var colors = listOf(
-        Color.BLUE,
-        Color.GREEN,
-        Color.RED,
-        Color.CYAN,
-        Color.GRAY,
-        Color.BLACK,
-        Color.DKGRAY,
-        Color.MAGENTA,
-        Color.YELLOW,
-        Color.RED
-    )
-    lateinit var labels: List<String>
-    lateinit var imageProcessor: ImageProcessor
-    lateinit var bitmap: Bitmap
-    lateinit var imageView: ImageView
-    lateinit var cameraDevice: CameraDevice
-    lateinit var handler: Handler
-    lateinit var cameraManager: CameraManager
+    var colors = listOf(Color.BLUE, Color.GREEN, Color.RED,Color.CYAN,Color.GRAY,Color.BLACK,Color.DKGRAY,Color.MAGENTA,Color.YELLOW,Color.RED)
     lateinit var textureView: TextureView
+    lateinit var imageView: ImageView
+    lateinit var warning : TextView
+    lateinit var cameraDevice: CameraDevice
+    lateinit var cameraManager: CameraManager
+    lateinit var handler: Handler
     lateinit var model: MobilenetTflite
     lateinit var tts: TextToSpeech
+    lateinit var bitmap: Bitmap
+    lateinit var imageProcessor: ImageProcessor
+    lateinit var vibrator: Vibrator
+    lateinit var labels: List<String>
 
     override fun onCreate(savedInstanceState: Bundle?) {
 
@@ -68,17 +63,18 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
 
         get_permission()
-        tts = TextToSpeech(this, this)
-        labels = FileUtil.loadLabels(this, "labels.txt")
-        imageProcessor = ImageProcessor.Builder().add(ResizeOp(300, 300, ResizeOp.ResizeMethod.BILINEAR)).build()
+        imageView = findViewById(R.id.imageView)
+        textureView = findViewById(R.id.textureView)
+        warning = findViewById(R.id.warning)
         model = MobilenetTflite.newInstance(this)
+        tts = TextToSpeech(this, this)
+        imageProcessor = ImageProcessor.Builder().add(ResizeOp(300, 300, ResizeOp.ResizeMethod.BILINEAR)).build()
+        vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        labels = FileUtil.loadLabels(this, "labels.txt")
 
         val handlerThread = HandlerThread("videoThread")
         handlerThread.start()
         handler = Handler(handlerThread.looper)
-
-        imageView = findViewById(R.id.imageView)
-        textureView = findViewById(R.id.textureView)
 
         predict()
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
@@ -87,7 +83,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             tts.setLanguage(Locale.ENGLISH)
-            tts.setSpeechRate(0.8f)
+            tts.setSpeechRate(0.7f)
         }
     }
 
@@ -141,11 +137,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         )
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
+    override fun onRequestPermissionsResult(requestCode: Int,permissions: Array<out String>,grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (grantResults[0] != PackageManager.PERMISSION_GRANTED) {
             get_permission()
@@ -153,6 +145,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     fun speakOut(text: String) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // For newer versions, you can create a VibrationEffect
+            val vibrationEffect = VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE)
+            vibrator.vibrate(vibrationEffect)
+        } else {
+            // For older versions, you can directly call vibrate method
+            vibrator.vibrate(100) // Vibrate for 500 milliseconds
+        }
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "")
     }
 
@@ -194,41 +194,51 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
                 var x = 0
                 scores.forEachIndexed { index, conf ->
+
+                    val top = locations.get(x) * h
+                    val left = locations.get(x + 1) * w
+                    val bottom = locations.get(x + 2) * h
+                    val right = locations.get(x + 3) * w
+
+                    x = index * 4
                     val conf = roundOff(conf)
+
                     if (conf > 0.65) {
-
-                        val text = labels.get(
-                            classes.get(index).toInt()
-                        ) // + " at: " + locations.get(x+1)*w + " " + locations.get(x)*h + " " +locations.get(x+3)*w + " " + locations.get(x+2)*h
-
-                        if (!tts.isSpeaking) {
-                            println("Speaking")
-                            speakOut(text)
-                        }
-                        println(text)
+                        obj_pos(left, top, right, bottom, w, h, labels.get(classes.get(index).toInt()))
 
                         // Draw the bounding box
                         paint.setColor(colors.get(index))
                         paint.style = Paint.Style.STROKE
-                        canvas.drawRect(
-                            locations.get(x + 1) * w,
-                            locations.get(x) * h,
-                            locations.get(x + 3) * w,
-                            locations.get(x + 2) * h,
-                            paint
-                        )
+                        canvas.drawRect(left,top,right,bottom,paint)
                         paint.style = Paint.Style.FILL
-                        canvas.drawText(
-                            labels.get(
-                                classes.get(index).toInt()
-                            ) + " " + conf.toString(),
-                            locations.get(x + 1) * w,
-                            locations.get(x) * h,
-                            paint
-                        )
+                        canvas.drawText(labels.get(classes.get(index).toInt()) + " " + conf.toString(),left,top,paint)
                     }
                 }
                 imageView.setImageBitmap(mutableBitmap)
+            }
+        }
+    }
+
+    fun obj_pos(left: Float, top: Float, right: Float, bottom: Float, w: Int, h: Int, Class : String) {
+        val x = (left + right) / 2
+        val y = (top + bottom) / 2
+
+        var text = Class
+
+        if (x < w / 3) {
+            text += " at left, move right"
+        } else if (x > 2 * w / 3) {
+            text += " at right, move left"
+        }
+
+        if ( (x > w / 3 && x < 2 * w / 3) && (y > h / 3 && y < 2 * h / 3) ) {
+            text += " ahead"
+        }
+
+        if (text != "") {
+            warning.setText(text)
+            if (!tts.isSpeaking) {
+                speakOut(text)
             }
         }
     }
