@@ -47,6 +47,5 @@ class SplashActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             startActivity(intent)
             finish()
         }, 2000)
-
     }
 }

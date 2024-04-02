@@ -11,12 +11,9 @@ import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
-import android.os.VibrationEffect
-import android.os.Vibrator
 import android.speech.tts.TextToSpeech
 import android.view.Surface
 import android.view.TextureView
@@ -48,7 +45,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     lateinit var tts: TextToSpeech
     lateinit var bitmap: Bitmap
     lateinit var imageProcessor: ImageProcessor
-    lateinit var vibrator: Vibrator
     lateinit var labels: List<String>
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -69,7 +65,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         model = MobilenetTflite.newInstance(this)
         tts = TextToSpeech(this, this)
         imageProcessor = ImageProcessor.Builder().add(ResizeOp(300, 300, ResizeOp.ResizeMethod.BILINEAR)).build()
-        vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         labels = FileUtil.loadLabels(this, "labels.txt")
 
         val handlerThread = HandlerThread("videoThread")
@@ -145,14 +140,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     fun speakOut(text: String) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // For newer versions, you can create a VibrationEffect
-            val vibrationEffect = VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE)
-            vibrator.vibrate(vibrationEffect)
-        } else {
-            // For older versions, you can directly call vibrate method
-            vibrator.vibrate(100) // Vibrate for 500 milliseconds
-        }
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "")
     }
 
@@ -193,6 +180,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 paint.strokeWidth = h / 85f
 
                 var x = 0
+                val stringBuilder = StringBuilder()
                 scores.forEachIndexed { index, conf ->
 
                     val top = locations.get(x) * h
@@ -204,8 +192,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     val conf = roundOff(conf)
 
                     if (conf > 0.65) {
-                        obj_pos(left, top, right, bottom, w, h, labels.get(classes.get(index).toInt()))
-
+                        val text = obj_pos(left, top, right, bottom, w, h, labels.get(classes.get(index).toInt()))
+                        stringBuilder.append(text + "\n")
+                        
                         // Draw the bounding box
                         paint.setColor(colors.get(index))
                         paint.style = Paint.Style.STROKE
@@ -215,32 +204,31 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     }
                 }
                 imageView.setImageBitmap(mutableBitmap)
+                val allText = stringBuilder.toString()
+                if(!tts.isSpeaking && allText.isNotEmpty()){
+                    warning.setText(allText)
+                    speakOut(allText)
+                }
             }
         }
     }
 
-    fun obj_pos(left: Float, top: Float, right: Float, bottom: Float, w: Int, h: Int, Class : String) {
+    fun obj_pos(left: Float, top: Float, right: Float, bottom: Float, w: Int, h: Int, obj_class : String) : String{
         val x = (left + right) / 2
         val y = (top + bottom) / 2
 
-        var text = Class
+        var text = obj_class
 
         if (x < w / 3) {
-            text += " at left, move right"
+            text += " at left"
         } else if (x > 2 * w / 3) {
-            text += " at right, move left"
+            text += " at right"
         }
 
         if ( (x > w / 3 && x < 2 * w / 3) && (y > h / 3 && y < 2 * h / 3) ) {
             text += " ahead"
         }
-
-        if (text != "") {
-            warning.setText(text)
-            if (!tts.isSpeaking) {
-                speakOut(text)
-            }
-        }
+        return text
     }
 
     fun roundOff(x: Float): Float {
