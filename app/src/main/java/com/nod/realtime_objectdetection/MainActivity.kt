@@ -3,6 +3,7 @@ package com.nod.realtime_objectdetection
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -180,7 +181,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 paint.strokeWidth = h / 85f
 
                 var x = 0
-                val stringBuilder = StringBuilder()
                 scores.forEachIndexed { index, conf ->
 
                     val top = locations.get(x) * h
@@ -192,8 +192,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     val conf = roundOff(conf)
 
                     if (conf > 0.65) {
-                        val text = obj_pos(left, top, right, bottom, w, h, labels.get(classes.get(index).toInt()))
-                        stringBuilder.append(text + "\n")
+                        obj_pos(left, top, right, bottom, w, h, labels.get(classes.get(index).toInt()))
                         
                         // Draw the bounding box
                         paint.setColor(colors.get(index))
@@ -204,31 +203,34 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     }
                 }
                 imageView.setImageBitmap(mutableBitmap)
-                val allText = stringBuilder.toString()
-                if(!tts.isSpeaking && allText.isNotEmpty()){
-                    warning.setText(allText)
-                    speakOut(allText)
-                }
+//                val allText = stringBuilder.toString()
+//                if(!tts.isSpeaking && allText.isNotEmpty()){
+//                    warning.setText(allText)
+//                    speakOut(allText)
+//                }
             }
         }
     }
 
-    fun obj_pos(left: Float, top: Float, right: Float, bottom: Float, w: Int, h: Int, obj_class : String) : String{
+    fun obj_pos(left: Float, top: Float, right: Float, bottom: Float, w: Int, h: Int, obj_class : String) {
         val x = (left + right) / 2
         val y = (top + bottom) / 2
 
         var text = obj_class
 
         if (x < w / 3) {
-            text += " at left"
+            text += " at left, move right"
         } else if (x > 2 * w / 3) {
-            text += " at right"
+            text += " at right, move left"
         }
 
         if ( (x > w / 3 && x < 2 * w / 3) && (y > h / 3 && y < 2 * h / 3) ) {
             text += " ahead"
         }
-        return text
+        warning.setText(text)
+        if(!tts.isSpeaking){
+            speakOut(text)
+        }
     }
 
     fun roundOff(x: Float): Float {
