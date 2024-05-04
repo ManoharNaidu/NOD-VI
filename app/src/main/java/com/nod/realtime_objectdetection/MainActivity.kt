@@ -3,7 +3,6 @@ package com.nod.realtime_objectdetection
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
-import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -31,9 +30,11 @@ import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.ResizeOp
 import java.util.Locale
+
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     // Decalring the variables
+    var previousOutcomes = mutableListOf<String>()
     val paint = Paint()
     var colors = listOf(Color.BLUE, Color.GREEN, Color.RED,Color.CYAN,Color.GRAY,Color.BLACK,Color.DKGRAY,Color.MAGENTA,Color.YELLOW,Color.RED)
     lateinit var textureView: TextureView
@@ -175,7 +176,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
                 val h = mutableBitmap.height
                 val w = mutableBitmap.width
-                println("Height: $h, Width: $w")
 
                 paint.textSize = h / 15f
                 paint.strokeWidth = h / 85f
@@ -226,6 +226,15 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         if ( (x > w / 3 && x < 2 * w / 3) && (y > h / 3 && y < 2 * h / 3) ) {
             text += " ahead"
+        }
+
+        if (previousOutcomes.isNotEmpty() && previousOutcomes.last() == text) {
+            return
+        }
+        previousOutcomes.add(text)
+
+        if(previousOutcomes.size > 10){
+            previousOutcomes.removeAt(0)
         }
         warning.setText(text)
         if(!tts.isSpeaking){
