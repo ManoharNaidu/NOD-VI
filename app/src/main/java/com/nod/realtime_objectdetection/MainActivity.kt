@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
@@ -31,17 +32,25 @@ import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.ResizeOp
 import java.util.Locale
 
+data class DetectedObject(
+    val classLabel: String,
+    val confidence: Float,
+    val boundingBox: RectF
+)
+
+@Suppress("DEPRECATION")
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
-    // Decalring the variables
+    // Declaring the variables
     var previousOutcomes = mutableListOf<String>()
+    private val detectedObjects = mutableListOf<DetectedObject>()
     val paint = Paint()
     var colors = listOf(Color.BLUE, Color.GREEN, Color.RED,Color.CYAN,Color.GRAY,Color.BLACK,Color.DKGRAY,Color.MAGENTA,Color.YELLOW,Color.RED)
     lateinit var textureView: TextureView
     lateinit var imageView: ImageView
     lateinit var warning : TextView
     lateinit var cameraDevice: CameraDevice
-    lateinit var cameraManager: CameraManager
+    private lateinit var cameraManager: CameraManager
     lateinit var handler: Handler
     lateinit var model: MobilenetTflite
     lateinit var tts: TextToSpeech
@@ -50,7 +59,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     lateinit var labels: List<String>
 
     override fun onCreate(savedInstanceState: Bundle?) {
-
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
@@ -60,7 +68,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             insets
         }
 
-        get_permission()
+        getPermission()
+
         imageView = findViewById(R.id.imageView)
         textureView = findViewById(R.id.textureView)
         warning = findViewById(R.id.warning)
@@ -84,7 +93,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    fun get_permission() {
+    private fun getPermission() {
         if (ContextCompat.checkSelfPermission(
                 this,
                 android.Manifest.permission.CAMERA
@@ -95,7 +104,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     @SuppressLint("MissingPermission")
-    fun open_camera() {
+    fun openCamera() {
         cameraManager.openCamera(
             cameraManager.cameraIdList[0],
             object : CameraDevice.StateCallback() {
@@ -137,7 +146,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     override fun onRequestPermissionsResult(requestCode: Int,permissions: Array<out String>,grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (grantResults[0] != PackageManager.PERMISSION_GRANTED) {
-            get_permission()
+            getPermission()
         }
     }
 
@@ -145,11 +154,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "")
     }
 
-    fun predict() {
+    private fun predict() {
         textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
 
             override fun onSurfaceTextureAvailable(p0: SurfaceTexture, p1: Int, p2: Int) {
-                open_camera()
+                openCamera()
             }
 
             override fun onSurfaceTextureSizeChanged(p0: SurfaceTexture, p1: Int, p2: Int) {
@@ -161,7 +170,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
             override fun onSurfaceTextureUpdated(p0: SurfaceTexture) {
 
-                bitmap = textureView.bitmap!!
+                bitmap = textureView.bitmap ?: return
                 var image = TensorImage.fromBitmap(bitmap)
                 image = imageProcessor.process(image)
 
@@ -180,66 +189,83 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 paint.textSize = h / 15f
                 paint.strokeWidth = h / 85f
 
+                detectedObjects.clear()
                 var x = 0
                 scores.forEachIndexed { index, conf ->
+                    val top = locations[x] * h
+                    val left = locations[x + 1] * w
+                    val bottom = locations[x + 2] * h
+                    val right = locations[x + 3] * w
+                    x += 4
 
-                    val top = locations.get(x) * h
-                    val left = locations.get(x + 1) * w
-                    val bottom = locations.get(x + 2) * h
-                    val right = locations.get(x + 3) * w
+                    val confidence = roundOff(conf)
+                    if (confidence > 0.65) {
+                        val classLabel = labels[classes[index].toInt()]
 
-                    x = index * 4
-                    val conf = roundOff(conf)
+                        detectedObjects.add(DetectedObject(classLabel, confidence, RectF(left, top, right, bottom)))
 
-                    if (conf > 0.65) {
-                        obj_pos(left, top, right, bottom, w, h, labels.get(classes.get(index).toInt()))
-                        
-                        // Draw the bounding box
-                        paint.setColor(colors.get(index))
+                        // Optionally draw bounding box on the bitmap
+                        paint.color = colors[index % colors.size] // Use modulo to cycle through colors
                         paint.style = Paint.Style.STROKE
-                        canvas.drawRect(left,top,right,bottom,paint)
+                        canvas.drawRect(left, top, right, bottom, paint)
                         paint.style = Paint.Style.FILL
-                        canvas.drawText(labels.get(classes.get(index).toInt()) + " " + conf.toString(),left,top,paint)
+                        canvas.drawText("$classLabel $confidence", left, top, paint)
                     }
                 }
+
                 imageView.setImageBitmap(mutableBitmap)
-//                val allText = stringBuilder.toString()
-//                if(!tts.isSpeaking && allText.isNotEmpty()){
-//                    warning.setText(allText)
-//                    speakOut(allText)
-//                }
+
+                val summary = summarizeFrame(detectedObjects, w, h)
+                warning.text = summary
+                if (previousOutcomes.isNotEmpty() && previousOutcomes.last() == summary) {
+                    return
+                }
+                previousOutcomes.add(summary)
+                if(previousOutcomes.size > 10){
+                    previousOutcomes.removeAt(0)
+                }
+                if(!tts.isSpeaking){
+                    speakOut(summary)
+                }
             }
         }
     }
 
-    fun obj_pos(left: Float, top: Float, right: Float, bottom: Float, w: Int, h: Int, obj_class : String) {
-        val x = (left + right) / 2
-        val y = (top + bottom) / 2
+    private fun summarizeFrame(detectedObjects: List<DetectedObject>, width: Int = bitmap.width, height: Int = bitmap.height): String {
+        val summary = buildString { detectedObjects.forEachIndexed { idx, obj ->
+                if (idx > 0) append(", ")
+                append(objPos(obj.boundingBox,width, height, obj.classLabel))
+            }
+        }
+        return summary
+    }
 
-        var text = obj_class
+    private fun objPos(boundBox: RectF, w: Int, h: Int, objClass : String): String {
+        val x = (boundBox.left + boundBox.right) / 2
+        val y = (boundBox.top + boundBox.bottom) / 2
 
+        var text = objClass
+
+//        for height
+        text += if (y < h / 3) {
+            " on the top"
+        } else if (y > 2 * h / 3) {
+            " on the bottom"
+        } else{
+            " in the middle"
+        }
+
+//        for width
         if (x < w / 3) {
-            text += " at left, move right"
+            text += " left"
         } else if (x > 2 * w / 3) {
-            text += " at right, move left"
+            text += " right"
+        } else{
+            if ("middle" !in text) {
+                text += " center"
+            }
         }
-
-        if ( (x > w / 3 && x < 2 * w / 3) && (y > h / 3 && y < 2 * h / 3) ) {
-            text += " ahead"
-        }
-
-        if (previousOutcomes.isNotEmpty() && previousOutcomes.last() == text) {
-            return
-        }
-        previousOutcomes.add(text)
-
-        if(previousOutcomes.size > 10){
-            previousOutcomes.removeAt(0)
-        }
-        warning.setText(text)
-        if(!tts.isSpeaking){
-            speakOut(text)
-        }
+        return text
     }
 
     fun roundOff(x: Float): Float {
@@ -253,9 +279,5 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         tts.stop()
         tts.shutdown()
         super.onDestroy()
-    }
-
-    override fun onResume() {
-        super.onResume()
     }
 }
