@@ -42,21 +42,24 @@ data class DetectedObject(
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     // Declaring the variables
-    var previousOutcomes = mutableListOf<String>()
+    private var previousOutcomes = mutableListOf<String>()
     private val detectedObjects = mutableListOf<DetectedObject>()
+    private val positionCounts = mutableMapOf<String, MutableList<String>>()
+
     val paint = Paint()
-    var colors = listOf(Color.BLUE, Color.GREEN, Color.RED,Color.CYAN,Color.GRAY,Color.BLACK,Color.DKGRAY,Color.MAGENTA,Color.YELLOW,Color.RED)
+    private var colors = listOf(Color.BLUE, Color.GREEN, Color.RED,Color.CYAN,Color.GRAY,Color.BLACK,Color.DKGRAY,Color.MAGENTA,Color.YELLOW,Color.RED)
     lateinit var textureView: TextureView
     lateinit var imageView: ImageView
-    lateinit var warning : TextView
+    private lateinit var warning : TextView
     lateinit var cameraDevice: CameraDevice
     private lateinit var cameraManager: CameraManager
     lateinit var handler: Handler
     lateinit var model: MobilenetTflite
-    lateinit var tts: TextToSpeech
+    private lateinit var tts: TextToSpeech
     lateinit var bitmap: Bitmap
     lateinit var imageProcessor: ImageProcessor
     lateinit var labels: List<String>
+    private val CONFIDENCE_THRESHOLD = 0.65f
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,6 +72,24 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
 
         getPermission()
+
+//        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+//        proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY)
+//
+//        if (proximitySensor == null) {
+//            Toast.makeText(this, "Proximity sensor not available.", Toast.LENGTH_LONG).show()
+//            finish()
+//        }
+//
+//        proximitySensorListener = object : SensorEventListener {
+//            override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {
+//                // Can be safely ignored for this demo.
+//            }
+//
+//            override fun onSensorChanged(sensorEvent: SensorEvent) {
+//                distances = sensorEvent.values[0]
+//            }
+//        }
 
         imageView = findViewById(R.id.imageView)
         textureView = findViewById(R.id.textureView)
@@ -150,7 +171,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    fun speakOut(text: String) {
+    private fun speakOut(text: String) {
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "")
     }
 
@@ -170,7 +191,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
             override fun onSurfaceTextureUpdated(p0: SurfaceTexture) {
 
-                bitmap = textureView.bitmap ?: return
+                bitmap = textureView.bitmap?: return
                 var image = TensorImage.fromBitmap(bitmap)
                 image = imageProcessor.process(image)
 
@@ -199,14 +220,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     x += 4
 
                     val confidence = roundOff(conf)
-                    if (confidence > 0.65) {
+                    if (confidence > CONFIDENCE_THRESHOLD) {
                         val classLabel = labels[classes[index].toInt()]
 
                         detectedObjects.add(DetectedObject(classLabel, confidence, RectF(left, top, right, bottom)))
 
-                        // Optionally draw bounding box on the bitmap
-                        paint.color = colors[index % colors.size] // Use modulo to cycle through colors
-                        paint.style = Paint.Style.STROKE
+                        // Draw bounding box and label on the bitmap
+                        setPaintProperties(index)
                         canvas.drawRect(left, top, right, bottom, paint)
                         paint.style = Paint.Style.FILL
                         canvas.drawText("$classLabel $confidence", left, top, paint)
@@ -214,58 +234,105 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
 
                 imageView.setImageBitmap(mutableBitmap)
-
-                val summary = summarizeFrame(detectedObjects, w, h)
-                warning.text = summary
-                if (previousOutcomes.isNotEmpty() && previousOutcomes.last() == summary) {
-                    return
-                }
-                previousOutcomes.add(summary)
-                if(previousOutcomes.size > 10){
-                    previousOutcomes.removeAt(0)
-                }
-                if(!tts.isSpeaking){
-                    speakOut(summary)
-                }
+                summarizeFrame(detectedObjects, w, h)
             }
         }
     }
 
-    private fun summarizeFrame(detectedObjects: List<DetectedObject>, width: Int = bitmap.width, height: Int = bitmap.height): String {
-        val summary = buildString { detectedObjects.forEachIndexed { idx, obj ->
-                if (idx > 0) append(", ")
-                append(objPos(obj.boundingBox,width, height, obj.classLabel))
-            }
+    private fun warning() {
+
+        println("Position Counts: $positionCounts")
+
+        if (positionCounts.isEmpty()) {
+            return
         }
-        return summary
+
+        val warning = when {
+            positionCounts.containsKey("bottom center") -> {
+
+                    if (positionCounts.containsKey("bottom left") && positionCounts.containsKey("bottom right")) {
+                        "Stay still"
+                    } else if (positionCounts.containsKey("bottom left")) {
+                        "Move right"
+                    } else if (positionCounts.containsKey("bottom right")) {
+                        "Move left"
+                    } else {
+                        "Move left or right"
+                    }
+            }
+
+            positionCounts.containsKey("middle center") -> {
+                if (!positionCounts.containsKey("bottom center")){
+                    "Move forward" //warn about the obj that will be in front of the user
+                } else if (positionCounts.containsKey("bottom left") && positionCounts.containsKey("bottom right")){
+                    "Stay still"
+                } else if (positionCounts.containsKey("bottom left")) {
+                    "Move right"
+                } else if (positionCounts.containsKey("bottom right")) {
+                    "Move left"
+                } else {
+                    "Move left or right"
+                }
+            }
+            else -> ""
+        }
+
+        println("Warning: $warning")
+//        println("Distances: $distances")
+        this.warning.text = warning
+
+        if (previousOutcomes.isNotEmpty() && previousOutcomes.last() == warning) {
+            return
+        }
+
+        previousOutcomes.add(warning)
+        if(previousOutcomes.size >= 10){
+            previousOutcomes.removeAt(0)
+        }
+
+        if(!tts.isSpeaking){
+            speakOut(warning)
+        }
     }
 
-    private fun objPos(boundBox: RectF, w: Int, h: Int, objClass : String): String {
+    private fun summarizeFrame(detectedObjects: List<DetectedObject>, width: Int = bitmap.width, height: Int = bitmap.height) {
+        detectedObjects.forEachIndexed { _, obj ->
+            val position = objPos(obj.boundingBox, width, height)
+            positionCounts.getOrPut(position) { mutableListOf() }.add(obj.classLabel)
+        }
+        warning()
+        positionCounts.clear()
+    }
+
+    private fun objPos(boundBox: RectF, w: Int, h: Int): String {
         val x = (boundBox.left + boundBox.right) / 2
         val y = (boundBox.top + boundBox.bottom) / 2
 
-        var text = objClass
+        var position = ""
 
-//        for height
-        text += if (y < h / 3) {
-            " on the top"
+        // for height
+        position += if (y < h / 3) {
+            "top"
         } else if (y > 2 * h / 3) {
-            " on the bottom"
+            "bottom"
         } else{
-            " in the middle"
+            "middle"
         }
 
-//        for width
-        if (x < w / 3) {
-            text += " left"
+        // for width
+        position += if (x < w / 3) {
+            " left"
         } else if (x > 2 * w / 3) {
-            text += " right"
-        } else{
-            if ("middle" !in text) {
-                text += " center"
-            }
+            " right"
+        } else {
+            " center"
         }
-        return text
+        return position.trim()
+    }
+
+    private fun setPaintProperties(index: Int) {
+        paint.color = colors[index % colors.size] // Use modulo to cycle through colors
+        paint.style = Paint.Style.STROKE
     }
 
     fun roundOff(x: Float): Float {
@@ -280,4 +347,18 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         tts.shutdown()
         super.onDestroy()
     }
+
+//    override fun onPause() {
+//        super.onPause()
+//        // Unregister the proximity sensor listener
+//        sensorManager.unregisterListener(proximitySensorListener)
+//    }
+//
+//    override fun onResume() {
+//        super.onResume()
+//        // Register the proximity sensor listener
+//        proximitySensor?.also { proximity ->
+//            sensorManager.registerListener(proximitySensorListener, proximity, SensorManager.SENSOR_DELAY_NORMAL)
+//        }
+//    }
 }
