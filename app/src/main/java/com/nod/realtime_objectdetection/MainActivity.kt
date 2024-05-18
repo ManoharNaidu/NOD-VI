@@ -2,6 +2,7 @@ package com.nod.realtime_objectdetection
 // Importing the required libraries
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -15,6 +16,9 @@ import android.hardware.camera2.CameraManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.view.Surface
 import android.view.TextureView
@@ -54,9 +58,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     lateinit var cameraDevice: CameraDevice
     private lateinit var cameraManager: CameraManager
     lateinit var handler: Handler
+    lateinit var bitmap: Bitmap
+
+    private lateinit var speechRecognizer: SpeechRecognizer
+    private lateinit var speechRecognizerIntent: Intent
+
     lateinit var model: MobilenetTflite
     private lateinit var tts: TextToSpeech
-    lateinit var bitmap: Bitmap
     lateinit var imageProcessor: ImageProcessor
     lateinit var labels: List<String>
     private val CONFIDENCE_THRESHOLD = 0.65f
@@ -71,25 +79,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             insets
         }
 
-        getPermission()
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
+        speechRecognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+        speechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        speechRecognizerIntent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, this.packageName)
 
-//        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-//        proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY)
-//
-//        if (proximitySensor == null) {
-//            Toast.makeText(this, "Proximity sensor not available.", Toast.LENGTH_LONG).show()
-//            finish()
-//        }
-//
-//        proximitySensorListener = object : SensorEventListener {
-//            override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {
-//                // Can be safely ignored for this demo.
-//            }
-//
-//            override fun onSensorChanged(sensorEvent: SensorEvent) {
-//                distances = sensorEvent.values[0]
-//            }
-//        }
+        getPermission()
 
         imageView = findViewById(R.id.imageView)
         textureView = findViewById(R.id.textureView)
@@ -120,7 +115,41 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 android.Manifest.permission.CAMERA
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            requestPermissions(arrayOf(android.Manifest.permission.CAMERA), 101)
+            // Use TextToSpeech to ask for permission
+            tts.speak("This app needs camera permission to work, please say yes to grant permission", TextToSpeech.QUEUE_FLUSH, null, "")
+
+            // Use SpeechRecognizer to listen to the user's response
+            speechRecognizer.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle) {}
+
+                override fun onBeginningOfSpeech() {}
+
+                override fun onRmsChanged(rmsdB: Float) {}
+
+                override fun onBufferReceived(buffer: ByteArray) {}
+
+                override fun onEndOfSpeech() {}
+
+                override fun onError(error: Int) {}
+
+                override fun onResults(results: Bundle) {
+                    val matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    if (matches != null) {
+                        for (result in matches) {
+                            if (result.contains("yes", true)) {
+                                // If the user's response is affirmative, request the permission
+                                requestPermissions(arrayOf(android.Manifest.permission.CAMERA), 101)
+                                break
+                            }
+                        }
+                    }
+                }
+
+                override fun onPartialResults(partialResults: Bundle) {}
+
+                override fun onEvent(eventType: Int, params: Bundle) {}
+            })
+            speechRecognizer.startListening(speechRecognizerIntent)
         }
     }
 
@@ -263,7 +292,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
             positionCounts.containsKey("middle center") -> {
                 if (!positionCounts.containsKey("bottom center")){
-                    "Move forward" //warn about the obj that will be in front of the user
+                    "Move forward"     //warn about the obj that will be in ahead of the user
                 } else if (positionCounts.containsKey("bottom left") && positionCounts.containsKey("bottom right")){
                     "Stay still"
                 } else if (positionCounts.containsKey("bottom left")) {
@@ -274,12 +303,18 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     "Move left or right"
                 }
             }
+
+            positionCounts.containsKey("middle left")  || positionCounts.containsKey("bottom left")-> {
+                "Move little-bit right"
+            }
+
+            positionCounts.containsKey("middle right") || positionCounts.containsKey("bottom right") -> {
+                "Move little-bit left"
+            }
             else -> ""
         }
 
         println("Warning: $warning")
-//        println("Distances: $distances")
-        this.warning.text = warning
 
         if (previousOutcomes.isNotEmpty() && previousOutcomes.last() == warning) {
             return
@@ -291,6 +326,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
 
         if(!tts.isSpeaking){
+        this.warning.text = warning
             speakOut(warning)
         }
     }
@@ -331,7 +367,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun setPaintProperties(index: Int) {
-        paint.color = colors[index % colors.size] // Use modulo to cycle through colors
+        paint.color = colors[index % colors.size]
         paint.style = Paint.Style.STROKE
     }
 
@@ -347,18 +383,4 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         tts.shutdown()
         super.onDestroy()
     }
-
-//    override fun onPause() {
-//        super.onPause()
-//        // Unregister the proximity sensor listener
-//        sensorManager.unregisterListener(proximitySensorListener)
-//    }
-//
-//    override fun onResume() {
-//        super.onResume()
-//        // Register the proximity sensor listener
-//        proximitySensor?.also { proximity ->
-//            sensorManager.registerListener(proximitySensorListener, proximity, SensorManager.SENSOR_DELAY_NORMAL)
-//        }
-//    }
 }
