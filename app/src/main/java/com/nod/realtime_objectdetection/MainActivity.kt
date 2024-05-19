@@ -298,7 +298,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
 
         println("Warning: $warning")
-        this.warning.text = warning
 
         if (previousOutcomes.isNotEmpty() && previousOutcomes.last() == warning) {
             return
@@ -309,6 +308,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             previousOutcomes.removeAt(0)
         }
 
+        this.warning.text = warning
         if(!tts.isSpeaking){
             speakOut(warning)
         }
