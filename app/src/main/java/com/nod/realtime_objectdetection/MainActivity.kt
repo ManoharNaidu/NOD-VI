@@ -48,17 +48,21 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     val paint = Paint()
     private var colors = listOf(Color.BLUE, Color.GREEN, Color.RED,Color.CYAN,Color.GRAY,Color.BLACK,Color.DKGRAY,Color.MAGENTA,Color.YELLOW,Color.RED)
+
     lateinit var textureView: TextureView
     lateinit var imageView: ImageView
     private lateinit var warning : TextView
+
     lateinit var cameraDevice: CameraDevice
     private lateinit var cameraManager: CameraManager
     lateinit var handler: Handler
     lateinit var bitmap: Bitmap
+
     lateinit var model: MobilenetTflite
     private lateinit var tts: TextToSpeech
     lateinit var imageProcessor: ImageProcessor
     lateinit var labels: List<String>
+
     private val CONFIDENCE_THRESHOLD = 0.65f
     private val NO_OF_OBJECTS_THRESHOLD = 4
 
@@ -77,6 +81,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         imageView = findViewById(R.id.imageView)
         textureView = findViewById(R.id.textureView)
         warning = findViewById(R.id.warning)
+
         model = MobilenetTflite.newInstance(this)
         tts = TextToSpeech(this, this)
         imageProcessor = ImageProcessor.Builder().add(ResizeOp(300, 300, ResizeOp.ResizeMethod.BILINEAR)).build()
@@ -118,8 +123,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     val surfaceTexture = textureView.surfaceTexture
                     val surface = Surface(surfaceTexture)
 
-                    val captureRequest =
-                        cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+                    val captureRequest =  cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
 
                     captureRequest.addTarget(surface)
                     cameraDevice.createCaptureSession(
@@ -185,6 +189,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 val numberOfDetections = outputs.numberOfDetectionsAsTensorBuffer.floatArray
 
                 if(numberOfDetections[0] == 0f){
+                    imageView.setImageBitmap(bitmap)
                     return
                 }
 
@@ -234,7 +239,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return
         }
 
-        val warning = when {
+        var warning = when {
             positionCounts.containsKey("bottom center") -> {
 
                     if (positionCounts.containsKey("bottom left") && positionCounts.containsKey("bottom right")) {
@@ -297,9 +302,16 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             else -> ""
         }
 
-        println("Warning: $warning")
 
         if (previousOutcomes.isNotEmpty() && previousOutcomes.last() == warning) {
+            return
+        }
+
+        if(previousOutcomes.contains("Stay still") && warning == ""){
+            warning = "Move Forward"
+        }
+
+        if(warning == ""){
             return
         }
 
@@ -308,8 +320,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             previousOutcomes.removeAt(0)
         }
 
-        this.warning.text = warning
         if(!tts.isSpeaking){
+            println("Warning: $warning")
+            this.warning.text = warning
             speakOut(warning)
         }
     }
