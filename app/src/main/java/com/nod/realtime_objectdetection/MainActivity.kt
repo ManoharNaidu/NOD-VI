@@ -7,7 +7,6 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.RectF
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
@@ -32,18 +31,11 @@ import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.ResizeOp
 import java.util.Locale
 
-data class DetectedObject(
-    val classLabel: String,
-    val confidence: Float,
-    val boundingBox: RectF
-)
-
 @Suppress("DEPRECATION")
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     // Declaring the variables
     private var previousOutcomes = mutableListOf<String>()
-    private val detectedObjects = mutableListOf<DetectedObject>()
     private val positionCounts = mutableMapOf<String, MutableList<String>>()
 
     val paint = Paint()
@@ -199,10 +191,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 val h = mutableBitmap.height
                 val w = mutableBitmap.width
 
-                paint.textSize = h / 15f
-                paint.strokeWidth = h / 85f
-
-                detectedObjects.clear()
                 var x = 0
                 scores.forEachIndexed { index, conf ->
                     val top = locations[x] * h
@@ -215,7 +203,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     if (confidence > CONFIDENCE_THRESHOLD) {
                         val classLabel = labels[classes[index].toInt()]
 
-                        detectedObjects.add(DetectedObject(classLabel, confidence, RectF(left, top, right, bottom)))
+                        val position = objPos(top,left,bottom,right,w,h)
+                        positionCounts.getOrPut(position) { mutableListOf() }.add(classLabel)
 
                         // Draw bounding box and label on the bitmap
                         setPaintProperties(index)
@@ -226,7 +215,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
 
                 imageView.setImageBitmap(mutableBitmap)
-                summarizeFrame(detectedObjects, w, h)
+                warning()
+                positionCounts.clear()
             }
         }
     }
@@ -327,18 +317,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    private fun summarizeFrame(detectedObjects: List<DetectedObject>, width: Int = bitmap.width, height: Int = bitmap.height) {
-        detectedObjects.forEachIndexed { _, obj ->
-            val position = objPos(obj.boundingBox, width, height)
-            positionCounts.getOrPut(position) { mutableListOf() }.add(obj.classLabel)
-        }
-        warning()
-        positionCounts.clear()
-    }
-
-    private fun objPos(boundBox: RectF, w: Int, h: Int): String {
-        val x = (boundBox.left + boundBox.right) / 2
-        val y = (boundBox.top + boundBox.bottom) / 2
+    private fun objPos(top: Float ,left: Float,bottom: Float,right: Float, w: Int, h: Int): String {
+        val x = (left + right) / 2
+        val y = (top + bottom) / 2
 
         var position = ""
 
@@ -362,7 +343,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         return position.trim()
     }
 
-    private fun setPaintProperties(index: Int) {
+    private fun setPaintProperties(index: Int,h: Int = bitmap.height) {
+        paint.textSize = h / 15f
+        paint.strokeWidth = h / 85f
         paint.color = colors[index % colors.size]
         paint.style = Paint.Style.STROKE
     }
